@@ -1156,12 +1156,20 @@ body {
     <div class="modal-title">Editar venda</div>
     <div id="modal-editar-venda-info" style="background:var(--warning-bg);border-radius:var(--radius-sm);padding:10px 12px;font-size:13px;color:var(--warning);margin-bottom:16px"></div>
     <div class="form-group">
+      <label class="form-label">Cliente</label>
+      <input class="form-input" id="edit-venda-cliente" placeholder="Nome do cliente" />
+    </div>
+    <div class="form-group">
+      <label class="form-label">Telefone</label>
+      <input class="form-input" id="edit-venda-tel" type="tel" placeholder="(xx) xxxxx-xxxx" oninput="formatTel(this)" />
+    </div>
+    <div class="form-group">
       <label class="form-label">Produto</label>
       <input class="form-input" id="edit-venda-produto" placeholder="Descrição do produto" />
     </div>
     <div class="form-group">
       <label class="form-label">Valor (R$)</label>
-      <input class="form-input" id="edit-venda-valor" type="number" step="0.01" min="0" />
+      <input class="form-input" id="edit-venda-valor" type="number" step="0.01" min="0" oninput="updateEditPreview()" />
     </div>
     <div class="form-group">
       <label class="form-label">Data</label>
@@ -1189,6 +1197,17 @@ body {
           <button class="parcela-btn" id="edit-parc-5" onclick="selectEditParcela(5)">5x</button>
         </div>
       </div>
+    </div>
+    <div class="form-group" id="edit-fiado-wrap" style="display:none">
+      <label class="form-label">Data de vencimento</label>
+      <input class="form-input" id="edit-venda-vencimento" type="date" />
+    </div>
+    <div class="valor-preview" id="edit-valor-preview" style="display:none">
+      <div class="row"><span>Valor base</span><span id="edit-prev-base">R$ 0,00</span></div>
+      <div class="row" id="edit-prev-taxa-row" style="display:none"><span id="edit-prev-taxa-label">Taxa cartão</span><span id="edit-prev-taxa">+R$ 0,00</span></div>
+      <div class="row total"><span>Total cliente paga</span><span id="edit-prev-total">R$ 0,00</span></div>
+      <div class="row comissao" style="margin-top:8px"><span id="edit-prev-com-label">Comissão</span><span id="edit-prev-comissao">R$ 0,00</span></div>
+      <div class="row"><span>A pagar dona</span><span id="edit-prev-repasse">R$ 0,00</span></div>
     </div>
     <input type="hidden" id="edit-venda-id" />
     <button class="btn btn-gold" onclick="salvarEdicaoVenda()" style="margin-top:8px">Salvar alterações</button>
@@ -2863,9 +2882,15 @@ function aplicarCredito() {
 // ===== PDV / TROCO =====
 function calcularTroco() {
   const recebido = parseFloat(document.getElementById('pdv-recebido').value) || 0;
+  if (recebido <= 0) {
+    document.getElementById('troco-box').style.display = 'none';
+    return;
+  }
   const base = getTotalCarrinho();
   const baseComDesconto = Math.max(base - creditoAplicado, 0);
-  const { totalCliente } = calcValues(baseComDesconto, currentPayment, currentParcela);
+  let taxa = 0;
+  if (currentPayment === 'cartao') taxa = (params.taxas[currentParcela - 1] || 0) / 100;
+  const totalCliente = baseComDesconto * (1 + taxa);
   const troco = recebido - totalCliente;
   const trocoBox = document.getElementById('troco-box');
   if (troco > 0.01) {
@@ -2875,18 +2900,27 @@ function calcularTroco() {
   } else {
     trocoGerado = 0;
     trocoBox.style.display = 'none';
+    if (recebido > 0 && recebido < totalCliente) {
+      document.getElementById('troco-valor').textContent = '';
+    }
   }
 }
 
-function registrarTroco(tipo) {
+async function registrarTroco(tipo) {
   if (tipo === 'credito') {
     const clienteId = document.getElementById('venda-cliente-nome').dataset.clienteId;
     if (!clienteId) { showToast('Cliente precisa estar cadastrado para ter crédito'); return; }
     const creditoAtual = getCredito(clienteId);
-    setCredito(clienteId, creditoAtual + trocoGerado);
-    showToast(`${fmtR(trocoGerado)} adicionado como crédito!`);
+    const novoSaldo = creditoAtual + trocoGerado;
+    setCredito(clienteId, novoSaldo);
+    showToast(`💰 ${fmtR(trocoGerado)} adicionado como crédito!`);
+    try { await apiPost('salvarCredito', { clienteId, saldo: novoSaldo }); } catch(e) {}
+    // Atualizar banner de crédito
+    clienteCreditoDisponivel = novoSaldo;
+    document.getElementById('credito-banner-wrap').style.display = 'flex';
+    document.getElementById('credito-disponivel-valor').textContent = fmtR(novoSaldo);
   } else {
-    showToast(`Troco de ${fmtR(trocoGerado)} em dinheiro`);
+    showToast(`💵 Troco de ${fmtR(trocoGerado)} em dinheiro`);
   }
   trocoGerado = 0;
   document.getElementById('troco-box').style.display = 'none';
@@ -2912,41 +2946,82 @@ function getRiscoBadge(clienteId, clienteNome) {
 let editPayment = 'pix';
 let editParcela = 1;
 
+
+
+function abrirEditarVenda(vendaId) {
+  const v = vendas.find(x => x.id === vendaId);
+  if (!v || v.pago) { showToast('Não é possível editar venda quitada'); return; }
+  document.getElementById('edit-venda-id').value = vendaId;
+  document.getElementById('edit-venda-cliente').value = v.clienteNome || '';
+  document.getElementById('edit-venda-tel').value = v.clienteTel || '';
+  document.getElementById('edit-venda-produto').value = v.produto || '';
+  document.getElementById('edit-venda-valor').value = v.base || '';
+  document.getElementById('edit-venda-data').value = normalizeData(v.data) || '';
+  document.getElementById('modal-editar-venda-info').textContent =
+    `Editando venda de ${v.clienteNome} — ${v.produto}`;
+  selectEditPay(v.pagamento || 'pix');
+  if (v.parcelas) selectEditParcela(parseInt(v.parcelas));
+  // Mostrar vencimento se fiado
+  const fiadoWrap = document.getElementById('edit-fiado-wrap');
+  if (v.fiado) {
+    fiadoWrap.style.display = 'block';
+    document.getElementById('edit-venda-vencimento').value = normalizeData(v.vencimento) || '';
+  } else {
+    fiadoWrap.style.display = 'none';
+  }
+  updateEditPreview();
+  document.getElementById('modal-editar-venda').classList.add('show');
+}
+
 function selectEditPay(type) {
   editPayment = type;
   ['pix','dinheiro','cartao'].forEach(t => {
     document.getElementById('edit-pay-' + t).classList.toggle('active', t === type);
   });
   document.getElementById('edit-parcelas-wrap').style.display = type === 'cartao' ? 'block' : 'none';
+  updateEditPreview();
 }
 
 function selectEditParcela(n) {
   editParcela = n;
   for(let i=1;i<=5;i++) document.getElementById('edit-parc-'+i).classList.toggle('active', i===n);
+  updateEditPreview();
 }
 
-function abrirEditarVenda(vendaId) {
-  const v = vendas.find(x => x.id === vendaId);
-  if (!v || v.pago) { showToast('Não é possível editar venda quitada'); return; }
-  document.getElementById('edit-venda-id').value = vendaId;
-  document.getElementById('edit-venda-produto').value = v.produto;
-  document.getElementById('edit-venda-valor').value = v.base;
-  document.getElementById('edit-venda-data').value = v.data;
-  document.getElementById('modal-editar-venda-info').textContent =
-    `Editando venda de ${v.clienteNome} — ${v.produto}`;
-  selectEditPay(v.pagamento || 'pix');
-  if (v.parcelas) selectEditParcela(v.parcelas);
-  document.getElementById('modal-editar-venda').classList.add('show');
+function updateEditPreview() {
+  const base = parseFloat(document.getElementById('edit-venda-valor').value) || 0;
+  if (base <= 0) { document.getElementById('edit-valor-preview').style.display = 'none'; return; }
+  let taxa = 0;
+  if (editPayment === 'cartao') taxa = (params.taxas[editParcela - 1] || 0) / 100;
+  const totalCliente = base * (1 + taxa);
+  const pct = params.comissao;
+  const comissao = base * (pct / 100);
+  const repasse = base - comissao;
+  document.getElementById('edit-valor-preview').style.display = 'block';
+  document.getElementById('edit-prev-base').textContent = fmtR(base);
+  const taxaRow = document.getElementById('edit-prev-taxa-row');
+  if (taxa > 0) {
+    taxaRow.style.display = 'flex';
+    document.getElementById('edit-prev-taxa-label').textContent = `Taxa ${editParcela}x (${(taxa*100).toFixed(1)}%)`;
+    document.getElementById('edit-prev-taxa').textContent = '+' + fmtR(base * taxa);
+  } else { taxaRow.style.display = 'none'; }
+  document.getElementById('edit-prev-total').textContent = fmtR(totalCliente);
+  document.getElementById('edit-prev-com-label').textContent = `Comissão (${pct}%)`;
+  document.getElementById('edit-prev-comissao').textContent = fmtR(comissao);
+  document.getElementById('edit-prev-repasse').textContent = fmtR(repasse);
 }
 
 async function salvarEdicaoVenda() {
   const vendaId = document.getElementById('edit-venda-id').value;
+  const clienteNome = document.getElementById('edit-venda-cliente').value.trim();
+  const clienteTel = document.getElementById('edit-venda-tel').value.trim();
   const produto = document.getElementById('edit-venda-produto').value.trim();
   const base = parseFloat(document.getElementById('edit-venda-valor').value) || 0;
   const data = document.getElementById('edit-venda-data').value;
-  if (!produto || base <= 0 || !data) { showToast('Preencha todos os campos'); return; }
+  if (!clienteNome || !produto || base <= 0 || !data) { showToast('Preencha todos os campos'); return; }
   if (!confirm(`Confirmar edição?
 
+Cliente: ${clienteNome}
 Produto: ${produto}
 Valor: ${fmtR(base)}
 Data: ${new Date(data+'T12:00:00').toLocaleDateString('pt-BR')}
@@ -2956,18 +3031,27 @@ Pagamento: ${editPayment}`)) return;
   if (editPayment === 'cartao') taxa = (params.taxas[editParcela - 1] || 9) / 100;
   const totalCliente = base * (1 + taxa);
   const pct = getComissao(getTotalMesVendido());
+  v.clienteNome = clienteNome;
+  v.clienteTel = clienteTel;
   v.produto = produto;
   v.base = base;
   v.totalCliente = totalCliente;
   v.data = data;
   v.pagamento = editPayment;
   v.parcelas = editPayment === 'cartao' ? editParcela : null;
+  v.vencimento = v.fiado ? (document.getElementById('edit-venda-vencimento').value || v.vencimento) : v.vencimento;
   v.comissao = v.pago ? base * (pct / 100) : 0;
   v.repasse = v.pago ? base - v.comissao : 0;
   v.itens = [{ descricao: produto, valor: base }];
+  // Atualizar nome no cadastro de cliente também
+  if (v.clienteId) {
+    const c = clientes.find(x => x.id === v.clienteId);
+    if (c) { c.nome = clienteNome; c.tel = clienteTel; }
+  }
   saveData();
   fecharModal('modal-editar-venda');
   renderHistorico();
+  renderFiado();
   updateDashboard();
   showToast('Venda atualizada! ✓');
   try { await apiPost('editarVenda', v); } catch(e) {}
