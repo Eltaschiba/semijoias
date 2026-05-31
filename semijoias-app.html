@@ -602,7 +602,7 @@ body {
 <body>
 
 <div class="app-header">
-  <h1> Gestão Semijoias</h1>
+  <h1>Gestão Vendas Semijoias</h1>
   <p class="subtitle">Controle de vendas</p>
   <div class="nav-tabs">
     <button class="nav-tab active" onclick="showPage('dashboard')">
@@ -658,7 +658,7 @@ body {
       <div class="stat-sub" id="dash-pct">30%</div>
     </div>
     <div class="stat-card">
-      <div class="stat-label">A pagar </div>
+      <div class="stat-label">A pagar dona</div>
       <div class="stat-value" id="dash-repasse">R$ 0</div>
       <div class="stat-sub">confirmado</div>
     </div>
@@ -772,7 +772,7 @@ body {
       <div class="row" id="prev-taxa-row" style="display:none"><span id="prev-taxa-label">Taxa cartão</span><span id="prev-taxa">+R$ 0,00</span></div>
       <div class="row total"><span>Total cliente paga</span><span id="prev-total">R$ 0,00</span></div>
       <div class="row comissao" style="margin-top:8px"><span id="prev-com-label">Comissão (30%)</span><span id="prev-comissao">R$ 0,00</span></div>
-      <div class="row"><span>A pagar dona</span><span id="prev-repasse">R$ 0,00</span></div>
+      <div class="row"><span>A pagar</span><span id="prev-repasse">R$ 0,00</span></div>
       <div class="row" id="prev-entrada-row" style="display:none;color:var(--success)"><span>Entrada</span><span id="prev-entrada">-R$ 0,00</span></div>
       <div class="row" id="prev-resta-row" style="display:none;font-weight:600;color:var(--danger)"><span>Restante a pagar</span><span id="prev-resta">R$ 0,00</span></div>
     </div>
@@ -918,6 +918,24 @@ body {
     </div>
     <button class="btn btn-gold" onclick="salvarNovoCliente()" style="margin-top:8px">Salvar cliente</button>
     <button class="btn btn-outline" onclick="fecharModal('modal-novo-cliente')" style="margin-top:8px">Cancelar</button>
+  </div>
+</div>
+
+<!-- MODAL DETALHES VENDA -->
+<div class="modal-overlay" id="modal-detalhes">
+  <div class="modal-sheet">
+    <div class="modal-handle"></div>
+    <div id="modal-detalhes-content"></div>
+    <button class="btn btn-outline" onclick="fecharModal('modal-detalhes')" style="margin-top:12px">Fechar</button>
+  </div>
+</div>
+
+<!-- MODAL HISTORICO CLIENTE -->
+<div class="modal-overlay" id="modal-cliente">
+  <div class="modal-sheet">
+    <div class="modal-handle"></div>
+    <div id="modal-cliente-content"></div>
+    <button class="btn btn-outline" onclick="fecharModal('modal-cliente')" style="margin-top:12px">Fechar</button>
   </div>
 </div>
 
@@ -1494,8 +1512,8 @@ function renderFiado() {
     return `<div class="fiado-item">
       <div class="fiado-header">
         <div>
-          <div class="fiado-cliente">${v.clienteNome}</div>
-          <div class="fiado-produto">${v.produto}</div>
+          <div class="fiado-cliente" onclick="event.stopPropagation();abrirHistoricoCliente('${v.clienteId||v.clienteNome}')" style="cursor:pointer;text-decoration:underline dotted;text-underline-offset:3px">${v.clienteNome}</div>
+          <div class="fiado-produto" onclick="event.stopPropagation();abrirDetalhesVenda('${v.id}')" style="cursor:pointer">${v.produto}</div>
         </div>
         <div class="fiado-vencimento ${vencClass}">
           <div class="label">Vencimento</div>
@@ -1639,10 +1657,10 @@ function renderVendaCard(v, compact) {
   const fiadoBadge = v.fiado
     ? (v.pago ? '<span class="badge badge-pago">Fiado quitado</span>' : '<span class="badge badge-fiado">Fiado</span>')
     : '';
-  return `<div class="venda-item">
+  return `<div class="venda-item" onclick="abrirDetalhesVenda('${v.id}')" style="cursor:pointer">
     <div class="venda-header">
       <div>
-        <div class="venda-cliente">${v.clienteNome}</div>
+        <div class="venda-cliente" onclick="event.stopPropagation();abrirHistoricoCliente('${v.clienteId||v.clienteNome}')" style="cursor:pointer;text-decoration:underline dotted;text-underline-offset:3px">${v.clienteNome}</div>
         <div class="venda-produto">${v.produto}</div>
       </div>
       <div class="venda-valor">${fmtR(v.totalCliente)}</div>
@@ -1659,6 +1677,152 @@ function renderVendaCard(v, compact) {
       </button>` : ''}
     </div>
   </div>`;
+}
+
+// ===== DETALHES VENDA =====
+function abrirDetalhesVenda(vendaId) {
+  const v = vendas.find(x => x.id === vendaId);
+  if (!v) return;
+  const pagtos = fiadoPagamentos[vendaId] || [];
+  const totalPago = pagtos.reduce((a, p) => a + parseFloat(p.valor), 0);
+  const restante = Math.max(v.totalCliente - totalPago, 0);
+  const d = new Date(v.data + 'T12:00:00');
+
+  let pagtoHTML = '';
+  if (pagtos.length > 0) {
+    pagtoHTML = `<div style="margin-top:16px">
+      <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:1px;color:var(--text3);margin-bottom:10px">Histórico de pagamentos</div>
+      <div style="position:relative;padding-left:20px">
+        <div style="position:absolute;left:6px;top:0;bottom:0;width:1.5px;background:var(--border2)"></div>
+        ${pagtos.map((p, i) => {
+          const pd = new Date(p.data + 'T12:00:00');
+          const tipo = p.pagamento === 'entrada' ? 'Entrada' : p.pagamento === 'quitado' ? 'Quitado' : p.pagamento === 'pix' ? 'PIX' : p.pagamento === 'dinheiro' ? 'Dinheiro' : 'Cartão';
+          return `<div style="display:flex;align-items:flex-start;gap:10px;margin-bottom:12px;position:relative">
+            <div style="width:12px;height:12px;border-radius:50%;background:var(--gold);flex-shrink:0;margin-top:2px;position:absolute;left:-19px"></div>
+            <div style="flex:1">
+              <div style="display:flex;justify-content:space-between;align-items:center">
+                <span style="font-size:14px;font-weight:600;color:var(--success)">${fmtR(parseFloat(p.valor))}</span>
+                <span style="font-size:11px;color:var(--text3)">${pd.toLocaleDateString('pt-BR')}</span>
+              </div>
+              <div style="font-size:11px;color:var(--text3);margin-top:2px">${tipo}</div>
+            </div>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>`;
+  } else if (!v.fiado) {
+    pagtoHTML = `<div style="margin-top:12px;padding:10px 12px;background:var(--success-bg);border-radius:var(--radius-sm);font-size:13px;color:var(--success);font-weight:500">
+      ✓ Pago na hora (${v.pagamento === 'pix' ? 'PIX' : v.pagamento === 'dinheiro' ? 'Dinheiro' : 'Cartão ' + v.parcelas + 'x'})
+    </div>`;
+  }
+
+  let saldoHTML = '';
+  if (v.fiado) {
+    saldoHTML = `<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:16px">
+      <div style="background:var(--success-bg);border-radius:var(--radius-sm);padding:10px;text-align:center">
+        <div style="font-size:11px;color:var(--success);margin-bottom:4px">Pago</div>
+        <div style="font-size:16px;font-weight:600;color:var(--success)">${fmtR(totalPago)}</div>
+      </div>
+      <div style="background:${restante > 0 ? 'var(--danger-bg)' : 'var(--success-bg)'};border-radius:var(--radius-sm);padding:10px;text-align:center">
+        <div style="font-size:11px;color:${restante > 0 ? 'var(--danger)' : 'var(--success)'};margin-bottom:4px">${restante > 0 ? 'Restante' : 'Quitado'}</div>
+        <div style="font-size:16px;font-weight:600;color:${restante > 0 ? 'var(--danger)' : 'var(--success)'}">${fmtR(restante)}</div>
+      </div>
+    </div>`;
+  }
+
+  document.getElementById('modal-detalhes-content').innerHTML = `
+    <div style="margin-bottom:16px">
+      <div style="font-family:'DM Serif Display',serif;font-size:20px;color:var(--text);margin-bottom:4px">${v.produto}</div>
+      <div style="font-size:13px;color:var(--text3)">${d.toLocaleDateString('pt-BR', {weekday:'long', day:'numeric', month:'long', year:'numeric'})}</div>
+    </div>
+    <div style="background:var(--gold-light);border-radius:var(--radius-sm);padding:12px 14px;border:1px solid var(--border2)">
+      <div style="display:flex;justify-content:space-between;font-size:13px;color:var(--text2);padding:3px 0">
+        <span>Cliente</span><span style="font-weight:600;color:var(--text)">${v.clienteNome}</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:13px;color:var(--text2);padding:3px 0">
+        <span>Valor total</span><span style="font-weight:600;color:var(--gold-dark)">${fmtR(v.totalCliente)}</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:13px;color:var(--text2);padding:3px 0">
+        <span>Pagamento</span><span>${v.pagamento === 'pix' ? 'PIX' : v.pagamento === 'dinheiro' ? 'Dinheiro' : 'Cartão ' + v.parcelas + 'x'}</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:13px;color:var(--text2);padding:3px 0;border-top:1px solid var(--border2);margin-top:6px;padding-top:8px">
+        <span>Comissão (${v.comissaoPct}%)</span><span style="color:var(--success);font-weight:600">${fmtR(v.comissao)}</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:13px;color:var(--text2);padding:3px 0">
+        <span>Repasse dona</span><span style="font-weight:600">${fmtR(v.repasse)}</span>
+      </div>
+    </div>
+    ${saldoHTML}
+    ${pagtoHTML}
+  `;
+  document.getElementById('modal-detalhes').classList.add('show');
+}
+
+// ===== HISTÓRICO CLIENTE =====
+function abrirHistoricoCliente(clienteIdOuNome) {
+  const cliente = clientes.find(c => c.id === clienteIdOuNome) ||
+                  clientes.find(c => c.nome === clienteIdOuNome) ||
+                  { nome: clienteIdOuNome, tel: '' };
+
+  const compras = vendas.filter(v =>
+    v.clienteId === clienteIdOuNome || v.clienteNome === clienteIdOuNome || v.clienteId === cliente.id
+  ).sort((a, b) => new Date(b.data) - new Date(a.data));
+
+  const totalGasto = compras.reduce((s, v) => s + v.totalCliente, 0);
+  const totalFiado = compras.filter(v => v.fiado && !v.pago).reduce((s, v) => {
+    const pago = (fiadoPagamentos[v.id] || []).reduce((a, p) => a + parseFloat(p.valor), 0);
+    return s + (v.totalCliente - pago);
+  }, 0);
+
+  const comprasHTML = compras.map(v => {
+    const d = new Date(v.data + 'T12:00:00');
+    const pagtos = fiadoPagamentos[v.id] || [];
+    const pago = pagtos.reduce((a, p) => a + parseFloat(p.valor), 0);
+    const restante = Math.max(v.totalCliente - pago, 0);
+    return `<div onclick="fecharModal('modal-cliente');setTimeout(()=>abrirDetalhesVenda('${v.id}'),300)" 
+      style="padding:12px 0;border-bottom:1px solid var(--border);cursor:pointer">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start">
+        <div style="flex:1">
+          <div style="font-size:14px;font-weight:600">${v.produto}</div>
+          <div style="font-size:11px;color:var(--text3);margin-top:2px">${d.toLocaleDateString('pt-BR')} · ${v.pagamento === 'pix' ? 'PIX' : v.pagamento === 'dinheiro' ? 'Dinheiro' : 'Cartão ' + v.parcelas + 'x'}</div>
+        </div>
+        <div style="text-align:right">
+          <div style="font-size:15px;font-weight:600;color:var(--gold-dark)">${fmtR(v.totalCliente)}</div>
+          ${v.fiado && !v.pago ? `<div style="font-size:11px;color:var(--danger);margin-top:2px">Deve ${fmtR(restante)}</div>` : ''}
+          ${v.pago && v.fiado ? `<div style="font-size:11px;color:var(--success);margin-top:2px">Quitado</div>` : ''}
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+
+  document.getElementById('modal-cliente-content').innerHTML = `
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px">
+      <div style="width:48px;height:48px;border-radius:50%;background:var(--gold-light);display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:600;color:var(--gold-dark);flex-shrink:0">
+        ${cliente.nome.charAt(0).toUpperCase()}
+      </div>
+      <div>
+        <div style="font-family:'DM Serif Display',serif;font-size:20px">${cliente.nome}</div>
+        ${cliente.tel ? `<div style="font-size:12px;color:var(--text3)">${cliente.tel}</div>` : ''}
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr ${totalFiado > 0 ? '1fr' : ''};gap:8px;margin-bottom:16px">
+      <div style="background:var(--surface2);border-radius:var(--radius-sm);padding:10px;text-align:center">
+        <div style="font-size:10px;color:var(--text3);margin-bottom:4px;text-transform:uppercase;letter-spacing:0.5px">Compras</div>
+        <div style="font-size:18px;font-weight:600">${compras.length}</div>
+      </div>
+      <div style="background:var(--surface2);border-radius:var(--radius-sm);padding:10px;text-align:center">
+        <div style="font-size:10px;color:var(--text3);margin-bottom:4px;text-transform:uppercase;letter-spacing:0.5px">Total gasto</div>
+        <div style="font-size:14px;font-weight:600;color:var(--gold-dark)">${fmtR(totalGasto)}</div>
+      </div>
+      ${totalFiado > 0 ? `<div style="background:var(--danger-bg);border-radius:var(--radius-sm);padding:10px;text-align:center">
+        <div style="font-size:10px;color:var(--danger);margin-bottom:4px;text-transform:uppercase;letter-spacing:0.5px">Em aberto</div>
+        <div style="font-size:14px;font-weight:600;color:var(--danger)">${fmtR(totalFiado)}</div>
+      </div>` : ''}
+    </div>
+    <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:1px;color:var(--text3);margin-bottom:8px">Histórico de compras</div>
+    ${compras.length === 0 ? '<p style="font-size:13px;color:var(--text3);text-align:center;padding:20px 0">Nenhuma compra registrada</p>' : comprasHTML}
+  `;
+  document.getElementById('modal-cliente').classList.add('show');
 }
 
 // ===== EXCLUIR VENDA =====
