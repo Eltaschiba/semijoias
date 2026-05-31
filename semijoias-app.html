@@ -761,6 +761,9 @@ body {
       <div id="fiado-data-wrap" style="display:none;margin-top:10px;">
         <label class="form-label">Data de vencimento</label>
         <input class="form-input" id="venda-vencimento" type="date" />
+        <label class="form-label" style="margin-top:10px;">Valor de entrada (opcional)</label>
+        <input class="form-input" id="venda-entrada" type="number" placeholder="R$ 0,00" step="0.01" min="0" oninput="updatePreview()" />
+        <p style="font-size:11px;color:var(--text3);margin-top:4px;">Se pago agora, será descontado do saldo devedor</p>
       </div>
     </div>
 
@@ -770,6 +773,8 @@ body {
       <div class="row total"><span>Total cliente paga</span><span id="prev-total">R$ 0,00</span></div>
       <div class="row comissao" style="margin-top:8px"><span id="prev-com-label">Comissão (30%)</span><span id="prev-comissao">R$ 0,00</span></div>
       <div class="row"><span>A pagar dona</span><span id="prev-repasse">R$ 0,00</span></div>
+      <div class="row" id="prev-entrada-row" style="display:none;color:var(--success)"><span>Entrada</span><span id="prev-entrada">-R$ 0,00</span></div>
+      <div class="row" id="prev-resta-row" style="display:none;font-weight:600;color:var(--danger)"><span>Restante a pagar</span><span id="prev-resta">R$ 0,00</span></div>
     </div>
   </div>
 
@@ -1220,6 +1225,25 @@ function updatePreview() {
   document.getElementById('prev-com-label').textContent = `Comissão (${pct}%)`;
   document.getElementById('prev-comissao').textContent = fmtR(comissao);
   document.getElementById('prev-repasse').textContent = fmtR(repasse);
+
+  const entradaEl = document.getElementById('venda-entrada');
+  const entradaRow = document.getElementById('prev-entrada-row');
+  const restaRow = document.getElementById('prev-resta-row');
+  if (fiadoAtivo && entradaEl) {
+    const entrada = parseFloat(entradaEl.value) || 0;
+    if (entrada > 0) {
+      entradaRow.style.display = 'flex';
+      restaRow.style.display = 'flex';
+      document.getElementById('prev-entrada').textContent = '-' + fmtR(entrada);
+      document.getElementById('prev-resta').textContent = fmtR(Math.max(totalCliente - entrada, 0));
+    } else {
+      entradaRow.style.display = 'none';
+      restaRow.style.display = 'none';
+    }
+  } else {
+    if (entradaRow) entradaRow.style.display = 'none';
+    if (restaRow) restaRow.style.display = 'none';
+  }
 }
 
 // ===== SALVAR VENDA =====
@@ -1273,8 +1297,14 @@ async function salvarVenda() {
     createdAt: new Date().toISOString()
   };
 
+  const entrada = fiadoAtivo ? (parseFloat(document.getElementById('venda-entrada').value) || 0) : 0;
+
   vendas.unshift(venda);
-  if (fiadoAtivo) fiadoPagamentos[venda.id] = [];
+  fiadoPagamentos[venda.id] = [];
+  if (entrada > 0) {
+    fiadoPagamentos[venda.id].push({ valor: entrada, data: data, pagamento: 'entrada' });
+    if (entrada >= venda.totalCliente - 0.01) venda.pago = true;
+  }
   saveData();
   resetForm();
   showToast('Salvando...');
@@ -1282,6 +1312,9 @@ async function salvarVenda() {
   try {
     if (novoCliente) await apiPost('salvarCliente', novoCliente);
     await apiPost('salvarVenda', venda);
+    if (entrada > 0) {
+      await apiPost('salvarPagamento', { vendaId: venda.id, valor: entrada, data: venda.data, pagamento: 'entrada' });
+    }
     showToast('Venda registrada! ✓');
   } catch(e) {
     showToast('Salvo localmente (sem internet)');
@@ -1301,6 +1334,7 @@ function resetForm() {
   document.getElementById('fiado-switch').classList.remove('on');
   document.getElementById('fiado-data-wrap').style.display = 'none';
   document.getElementById('valor-preview').style.display = 'none';
+  document.getElementById('venda-entrada').value = '';
   const today = new Date().toISOString().split('T')[0];
   document.getElementById('venda-data').value = today;
 }
@@ -1618,8 +1652,26 @@ function renderVendaCard(v, compact) {
       <span>Comissão: ${fmtR(v.comissao)}</span>
       <span>Repasse: ${fmtR(v.repasse)}</span>
     </div>` : ''}
-    <div class="venda-date">${dataFmt}</div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px;">
+      <div class="venda-date">${dataFmt}</div>
+      ${!compact ? `<button onclick="excluirVenda('${v.id}')" style="background:none;border:none;cursor:pointer;padding:4px 8px;border-radius:6px;font-size:12px;color:var(--danger);font-family:'DM Sans',sans-serif;">
+        <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" style="vertical-align:-2px;margin-right:3px"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/></svg>Excluir
+      </button>` : ''}
+    </div>
   </div>`;
+}
+
+// ===== EXCLUIR VENDA =====
+async function excluirVenda(vendaId) {
+  if (!confirm('Excluir esta venda? Ela será removida do histórico e da planilha.')) return;
+  vendas = vendas.filter(v => v.id !== vendaId);
+  delete fiadoPagamentos[vendaId];
+  saveData();
+  renderHistorico();
+  updateDashboard();
+  renderFiado();
+  showToast('Venda excluída');
+  try { await apiPost('excluirVenda', { id: vendaId }); } catch(e) {}
 }
 
 // ===== UTILS =====
