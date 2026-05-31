@@ -595,6 +595,93 @@ body {
 .cliente-tel { font-size: 12px; color: var(--text3); margin-top: 2px; }
 .cliente-stats { font-size: 12px; color: var(--text2); margin-top: 4px; }
 
+/* CARRINHO */
+.carrinho-item {
+  display: flex; gap: 8px; align-items: center;
+  margin-bottom: 8px;
+}
+.carrinho-item input[type="text"] {
+  flex: 2; padding: 9px 12px;
+  border: 1.5px solid var(--border2);
+  border-radius: var(--radius-sm);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 14px; color: var(--text);
+  background: #fff; outline: none;
+}
+.carrinho-item input[type="number"] {
+  flex: 1; padding: 9px 10px;
+  border: 1.5px solid var(--border2);
+  border-radius: var(--radius-sm);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 14px; color: var(--text);
+  background: #fff; outline: none;
+  min-width: 0;
+}
+.carrinho-item input:focus { border-color: var(--gold); }
+.carrinho-remove {
+  width: 32px; height: 32px; flex-shrink: 0;
+  border: none; background: var(--danger-bg);
+  border-radius: var(--radius-sm); cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  color: var(--danger);
+}
+.carrinho-total {
+  display: flex; justify-content: space-between;
+  padding: 10px 0 4px;
+  border-top: 1.5px solid var(--border2);
+  margin-top: 4px;
+  font-size: 15px; font-weight: 600;
+}
+
+/* CRÉDITO */
+.credito-banner {
+  background: var(--info-bg);
+  border: 1.5px solid rgba(26,95,160,0.3);
+  border-radius: var(--radius-sm);
+  padding: 10px 14px;
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 10px;
+}
+.credito-banner .label { font-size: 13px; color: var(--info); font-weight: 500; }
+.credito-banner .valor { font-size: 15px; font-weight: 700; color: var(--info); }
+.credito-banner button {
+  font-size: 12px; font-weight: 600;
+  padding: 5px 10px; border-radius: var(--radius-sm);
+  border: none; background: var(--info); color: #fff; cursor: pointer;
+}
+
+/* TROCO */
+.troco-box {
+  background: var(--surface2);
+  border-radius: var(--radius-sm);
+  padding: 12px 14px; margin-top: 10px;
+}
+.troco-valor {
+  font-size: 22px; font-weight: 700;
+  color: var(--success); text-align: center;
+  margin: 6px 0 10px;
+}
+.troco-actions { display: flex; gap: 8px; }
+
+/* RISCO */
+.risco-badge {
+  font-size: 11px; font-weight: 600;
+  padding: 2px 8px; border-radius: 20px;
+  flex-shrink: 0;
+}
+.risco-verde { background: var(--success-bg); color: var(--success); }
+.risco-amarelo { background: var(--warning-bg); color: var(--warning); }
+.risco-vermelho { background: var(--danger-bg); color: var(--danger); }
+
+/* PDV */
+.pdv-recebido {
+  margin-top: 10px;
+  padding: 12px 14px;
+  background: var(--surface2);
+  border-radius: var(--radius-sm);
+  border: 1.5px solid var(--border2);
+}
+
 /* NOTIF BADGE NO NAV */
 .nav-tab-icon { position: relative; display: inline-block; }
 </style>
@@ -604,7 +691,7 @@ body {
 <div class="app-header">
   <div style="display:flex;justify-content:space-between;align-items:flex-start">
     <div>
-      <h1> Gestão Semijoias</h1>
+      <h1>Gestão Semijoias</h1>
       <p class="subtitle">Controle de vendas</p>
     </div>
     <button onclick="showPage('parametros')" style="background:none;border:none;cursor:pointer;padding:4px;margin-top:2px" title="Configurações">
@@ -717,17 +804,19 @@ body {
         oninput="formatTel(this)" />
     </div>
     <div class="form-group">
-      <label class="form-label">Produto</label>
-      <input class="form-input" id="venda-produto" placeholder="Ex: Anel dourado cravejado..." />
-    </div>
-    <div class="form-group">
       <label class="form-label">Data da venda</label>
       <input class="form-input" id="venda-data" type="date" />
     </div>
     <div class="form-group">
-      <label class="form-label">Valor do produto (R$)</label>
-      <input class="form-input" id="venda-valor" type="number" placeholder="0,00" step="0.01" min="0"
-        oninput="updatePreview()" />
+      <label class="form-label">Produtos</label>
+      <div id="carrinho-items"></div>
+      <button class="btn btn-outline" onclick="adicionarItemCarrinho()" style="margin-top:8px;font-size:13px;padding:8px">
+        + Adicionar produto
+      </button>
+      <div class="carrinho-total">
+        <span style="color:var(--text2)">Total</span>
+        <span id="carrinho-total-valor" style="color:var(--gold-dark)">R$ 0,00</span>
+      </div>
     </div>
     <div class="form-group">
       <label class="form-label">Forma de pagamento</label>
@@ -774,14 +863,36 @@ body {
       </div>
     </div>
 
+    <div id="credito-banner-wrap" style="display:none" class="credito-banner">
+      <div>
+        <div class="label">💰 Crédito disponível</div>
+        <div class="valor" id="credito-disponivel-valor">R$ 0,00</div>
+      </div>
+      <button onclick="aplicarCredito()">Aplicar</button>
+    </div>
+
     <div class="valor-preview" id="valor-preview" style="display:none">
       <div class="row"><span>Valor base</span><span id="prev-base">R$ 0,00</span></div>
       <div class="row" id="prev-taxa-row" style="display:none"><span id="prev-taxa-label">Taxa cartão</span><span id="prev-taxa">+R$ 0,00</span></div>
+      <div class="row" id="prev-credito-row" style="display:none;color:var(--info)"><span>Crédito aplicado</span><span id="prev-credito">-R$ 0,00</span></div>
       <div class="row total"><span>Total cliente paga</span><span id="prev-total">R$ 0,00</span></div>
       <div class="row comissao" style="margin-top:8px"><span id="prev-com-label">Comissão (30%)</span><span id="prev-comissao">R$ 0,00</span></div>
       <div class="row"><span>A pagar dona</span><span id="prev-repasse">R$ 0,00</span></div>
       <div class="row" id="prev-entrada-row" style="display:none;color:var(--success)"><span>Entrada</span><span id="prev-entrada">-R$ 0,00</span></div>
       <div class="row" id="prev-resta-row" style="display:none;font-weight:600;color:var(--danger)"><span>Restante a pagar</span><span id="prev-resta">R$ 0,00</span></div>
+    </div>
+
+    <div id="pdv-recebido-wrap" style="display:none" class="pdv-recebido">
+      <label class="form-label">Valor recebido do cliente (R$)</label>
+      <input class="form-input" id="pdv-recebido" type="number" placeholder="0,00" step="0.01" min="0" oninput="calcularTroco()" />
+      <div id="troco-box" style="display:none" class="troco-box">
+        <div style="font-size:12px;color:var(--text3);text-align:center">Troco</div>
+        <div class="troco-valor" id="troco-valor">R$ 0,00</div>
+        <div class="troco-actions">
+          <button class="btn btn-outline" style="flex:1;padding:10px;font-size:13px" onclick="registrarTroco('dinheiro')">💵 Dar troco</button>
+          <button class="btn btn-gold" style="flex:1;padding:10px;font-size:13px" onclick="registrarTroco('credito')">💰 Virar crédito</button>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -900,6 +1011,27 @@ body {
         </div>
         <div style="display:flex;align-items:center;gap:4px">
           <input class="param-input" id="param-notif-dias" value="3" type="number" step="1" min="1" max="30" onchange="saveParams()" /> dias
+        </div>
+      </div>
+    </div>
+    <div class="param-group">
+      <div class="param-title">Gestão de risco (fiado)</div>
+      <div class="param-row">
+        <div>
+          <div class="param-label">Limite risco médio</div>
+          <div class="param-sub">Acima = alto risco</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:4px">
+          R$ <input class="param-input" id="param-risco-alto" value="200" type="number" step="50" onchange="saveParams()" />
+        </div>
+      </div>
+      <div class="param-row">
+        <div>
+          <div class="param-label">Limite risco baixo</div>
+          <div class="param-sub">Abaixo = sem risco</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:4px">
+          R$ <input class="param-input" id="param-risco-medio" value="100" type="number" step="50" onchange="saveParams()" />
         </div>
       </div>
     </div>
@@ -1043,7 +1175,9 @@ let params = {
   comissao: 30,
   comissaoEsp: 35,
   meta: 5000,
-  notifDias: 3
+  notifDias: 3,
+  riscoAlto: 200,
+  riscoMedio: 100
 };
 let clientes = [];
 let vendas = [];
@@ -1057,6 +1191,10 @@ let currentMonth = new Date().getMonth();
 let currentYear = new Date().getFullYear();
 let fiadoFiltro = 'todos';
 let sincronizando = false;
+let carrinhoItems = [];
+let creditoAplicado = 0;
+let trocoGerado = 0;
+let clienteCreditoDisponivel = 0;
 
 // ===== INIT =====
 async function init() {
@@ -1068,6 +1206,7 @@ async function init() {
   renderFiado();
   renderHistorico();
   loadParams();
+  initCarrinho();
   await sincronizarSheets();
 }
 
@@ -1130,6 +1269,8 @@ function saveParams() {
   params.comissaoEsp = parseFloat(document.getElementById('param-comissao-esp').value) || 35;
   params.meta = parseFloat(document.getElementById('param-meta').value) || 5000;
   params.notifDias = parseInt(document.getElementById('param-notif-dias').value) || 3;
+  params.riscoAlto = parseFloat(document.getElementById('param-risco-alto').value) || 200;
+  params.riscoMedio = parseFloat(document.getElementById('param-risco-medio').value) || 100;
   localStorage.setItem('sj_params', JSON.stringify(params));
   showToast('Configurações salvas!');
   updateDashboard();
@@ -1145,6 +1286,8 @@ function loadParams() {
   document.getElementById('param-comissao-esp').value = params.comissaoEsp;
   document.getElementById('param-meta').value = params.meta;
   document.getElementById('param-notif-dias').value = params.notifDias;
+  document.getElementById('param-risco-alto').value = params.riscoAlto || 200;
+  document.getElementById('param-risco-medio').value = params.riscoMedio || 100;
 }
 
 // ===== NAVIGATION =====
@@ -1168,12 +1311,14 @@ function onClienteInput(val) {
   const list = document.getElementById('autocomplete-list');
   if (!val.trim()) { list.classList.remove('show'); return; }
   const matches = clientes.filter(c => c.nome.toLowerCase().includes(val.toLowerCase()));
-  let html = matches.map(c =>
-    `<div class="autocomplete-item" onmousedown="selectCliente('${c.id}')">
-      <span>${c.nome}</span>
-      <span class="phone">${c.tel}</span>
-    </div>`
-  ).join('');
+  let html = matches.map(c => {
+    const cred = getCredito(c.id);
+    const risco = getRiscoBadge(c.id, c.nome);
+    return `<div class="autocomplete-item" onmousedown="selectCliente('${c.id}')">
+      <span>${c.nome} ${risco}</span>
+      <span class="phone">${cred > 0.01 ? '💰' + fmtR(cred) + ' · ' : ''}${c.tel}</span>
+    </div>`;
+  }).join('');
   html += `<div class="autocomplete-item new-client" onmousedown="abrirNovoCliente('${val}')">+ Salvar como novo cliente</div>`;
   list.innerHTML = html;
   list.classList.add('show');
@@ -1191,6 +1336,16 @@ function selectCliente(id) {
   document.getElementById('venda-cliente-nome').dataset.clienteId = id;
   document.getElementById('telefone-wrap').style.display = 'none';
   document.getElementById('autocomplete-list').classList.remove('show');
+  creditoAplicado = 0;
+  clienteCreditoDisponivel = getCredito(id);
+  const banner = document.getElementById('credito-banner-wrap');
+  if (clienteCreditoDisponivel > 0.01) {
+    banner.style.display = 'flex';
+    document.getElementById('credito-disponivel-valor').textContent = fmtR(clienteCreditoDisponivel);
+  } else {
+    banner.style.display = 'none';
+  }
+  updatePreview();
 }
 
 function abrirNovoCliente(nome) {
@@ -1223,6 +1378,16 @@ function selectPayment(type) {
     document.getElementById('pay-' + t).classList.toggle('active', t === type);
   });
   document.getElementById('parcelas-wrap').style.display = type === 'cartao' ? 'block' : 'none';
+  const pdvWrap = document.getElementById('pdv-recebido-wrap');
+  if (type === 'dinheiro') {
+    pdvWrap.style.display = 'block';
+  } else {
+    pdvWrap.style.display = 'none';
+    trocoGerado = 0;
+    document.getElementById('troco-box').style.display = 'none';
+    const pdvInput = document.getElementById('pdv-recebido');
+    if (pdvInput) pdvInput.value = '';
+  }
   updatePreview();
 }
 
@@ -1261,24 +1426,31 @@ function calcValues(base, payment, parcela) {
   if (payment === 'cartao') taxa = params.taxas[parcela - 1] / 100;
   const totalCliente = base * (1 + taxa);
   const totalMes = getTotalMesVendido();
-  const pct = getComissao(totalMes + base);
+  const baseOriginal = getTotalCarrinho();
+  const pct = getComissao(totalMes + baseOriginal);
   const comissao = base * (pct / 100);
   const repasse = base - comissao;
   return { taxa, totalCliente, comissao, repasse, pct };
 }
 
 function updatePreview() {
-  const base = parseFloat(document.getElementById('venda-valor').value) || 0;
+  const base = getTotalCarrinho();
   if (base <= 0) { document.getElementById('valor-preview').style.display = 'none'; return; }
-  const { taxa, totalCliente, comissao, repasse, pct } = calcValues(base, currentPayment, currentParcela);
+  const baseComDesconto = Math.max(base - creditoAplicado, 0);
+  const { taxa, totalCliente, comissao, repasse, pct } = calcValues(baseComDesconto, currentPayment, currentParcela);
   document.getElementById('valor-preview').style.display = 'block';
   document.getElementById('prev-base').textContent = fmtR(base);
   const taxaRow = document.getElementById('prev-taxa-row');
   if (taxa > 0) {
     taxaRow.style.display = 'flex';
     document.getElementById('prev-taxa-label').textContent = `Taxa ${currentParcela}x (${(taxa*100).toFixed(1)}%)`;
-    document.getElementById('prev-taxa').textContent = '+' + fmtR(base * taxa);
+    document.getElementById('prev-taxa').textContent = '+' + fmtR(baseComDesconto * taxa);
   } else { taxaRow.style.display = 'none'; }
+  const creditoRow = document.getElementById('prev-credito-row');
+  if (creditoAplicado > 0) {
+    creditoRow.style.display = 'flex';
+    document.getElementById('prev-credito').textContent = '-' + fmtR(creditoAplicado);
+  } else { creditoRow.style.display = 'none'; }
   document.getElementById('prev-total').textContent = fmtR(totalCliente);
   document.getElementById('prev-com-label').textContent = `Comissão (${pct}%)`;
   document.getElementById('prev-comissao').textContent = fmtR(comissao);
@@ -1309,19 +1481,20 @@ async function salvarVenda() {
   const clienteNome = document.getElementById('venda-cliente-nome').value.trim();
   const clienteId = document.getElementById('venda-cliente-nome').dataset.clienteId || null;
   const clienteTel = document.getElementById('venda-cliente-tel').value.trim();
-  const produto = document.getElementById('venda-produto').value.trim();
   const data = document.getElementById('venda-data').value;
-  const base = parseFloat(document.getElementById('venda-valor').value) || 0;
+  const base = getTotalCarrinho();
+  const itens = carrinhoItems.filter(i => i.descricao.trim());
+  const produto = itens.map(i => i.descricao).join(' + ') || 'Produto';
 
   if (!clienteNome) { showToast('Informe o cliente'); return; }
-  if (!produto) { showToast('Informe o produto'); return; }
+  if (itens.length === 0 || base <= 0) { showToast('Adicione pelo menos um produto'); return; }
   if (!data) { showToast('Informe a data'); return; }
-  if (base <= 0) { showToast('Informe o valor'); return; }
   if (fiadoAtivo && !document.getElementById('venda-vencimento').value) {
     showToast('Informe a data de vencimento'); return;
   }
 
-  const { totalCliente, comissao, repasse, pct } = calcValues(base, currentPayment, currentParcela);
+  const baseComDesconto = Math.max(base - creditoAplicado, 0);
+  const { totalCliente, comissao, repasse, pct } = calcValues(baseComDesconto, currentPayment, currentParcela);
 
   let cId = clienteId;
   let novoCliente = null;
@@ -1341,8 +1514,10 @@ async function salvarVenda() {
     clienteNome,
     clienteTel,
     produto,
+    itens: itens,
     data,
     base,
+    creditoAplicado,
     totalCliente,
     comissao,
     repasse,
@@ -1362,6 +1537,12 @@ async function salvarVenda() {
   if (entrada > 0) {
     fiadoPagamentos[venda.id].push({ valor: entrada, data: data, pagamento: 'entrada' });
     if (entrada >= venda.totalCliente - 0.01) venda.pago = true;
+  }
+  // Processar crédito aplicado
+  if (creditoAplicado > 0 && cId) {
+    const clienteCreditos = JSON.parse(localStorage.getItem('sj_creditos') || '{}');
+    clienteCreditos[cId] = Math.max((clienteCreditos[cId] || 0) - creditoAplicado, 0);
+    localStorage.setItem('sj_creditos', JSON.stringify(clienteCreditos));
   }
   saveData();
   resetForm();
@@ -1384,17 +1565,22 @@ function resetForm() {
   document.getElementById('venda-cliente-nome').value = '';
   document.getElementById('venda-cliente-nome').dataset.clienteId = '';
   document.getElementById('venda-cliente-tel').value = '';
-  document.getElementById('venda-produto').value = '';
-  document.getElementById('venda-valor').value = '';
   document.getElementById('telefone-wrap').style.display = 'none';
   selectPayment('pix');
   fiadoAtivo = false;
+  creditoAplicado = 0;
+  clienteCreditoDisponivel = 0;
+  trocoGerado = 0;
   document.getElementById('fiado-switch').classList.remove('on');
   document.getElementById('fiado-data-wrap').style.display = 'none';
   document.getElementById('valor-preview').style.display = 'none';
   document.getElementById('venda-entrada').value = '';
+  document.getElementById('credito-banner-wrap').style.display = 'none';
+  document.getElementById('pdv-recebido-wrap').style.display = 'none';
+  document.getElementById('troco-box').style.display = 'none';
   const today = new Date().toISOString().split('T')[0];
   document.getElementById('venda-data').value = today;
+  initCarrinho();
 }
 
 // ===== DASHBOARD =====
@@ -1779,9 +1965,16 @@ function abrirDetalhesVenda(vendaId) {
       <div style="display:flex;justify-content:space-between;font-size:13px;color:var(--text2);padding:3px 0">
         <span>Cliente</span><span style="font-weight:600;color:var(--text)">${v.clienteNome}</span>
       </div>
+      ${v.itens && v.itens.length > 1 ? v.itens.map(it => `
+      <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--text3);padding:2px 0 2px 8px;border-left:2px solid var(--border2)">
+        <span>${it.descricao}</span><span>${fmtR(parseFloat(it.valor))}</span>
+      </div>`).join('') : ''}
       <div style="display:flex;justify-content:space-between;font-size:13px;color:var(--text2);padding:3px 0">
         <span>Valor total</span><span style="font-weight:600;color:var(--gold-dark)">${fmtR(v.totalCliente)}</span>
       </div>
+      ${v.creditoAplicado > 0 ? `<div style="display:flex;justify-content:space-between;font-size:13px;color:var(--info);padding:3px 0">
+        <span>Crédito aplicado</span><span>-${fmtR(v.creditoAplicado)}</span>
+      </div>` : ''}
       <div style="display:flex;justify-content:space-between;font-size:13px;color:var(--text2);padding:3px 0">
         <span>Pagamento</span><span>${v.pagamento === 'pix' ? 'PIX' : v.pagamento === 'dinheiro' ? 'Dinheiro' : 'Cartão ' + v.parcelas + 'x'}</span>
       </div>
@@ -1897,12 +2090,16 @@ function renderClientes() {
     const totalGasto = compras.reduce((s, v) => s + v.totalCliente, 0);
     const fiadoAberto = compras.filter(v => v.fiado && !v.pago).length;
     const iniciais = c.nome.split(' ').map(n => n[0]).slice(0,2).join('').toUpperCase();
+    const creditoCliente = getCredito(c.id);
     return `<div class="cliente-item">
       <div class="cliente-avatar">${iniciais}</div>
       <div class="cliente-info" onclick="abrirHistoricoCliente('${c.id}')" style="cursor:pointer;flex:1">
-        <div class="cliente-nome">${c.nome}</div>
-        <div class="cliente-tel">${c.tel || 'Sem telefone'}</div>
-        <div class="cliente-stats">${compras.length} compra${compras.length !== 1 ? 's' : ''} · ${fmtR(totalGasto)}${fiadoAberto > 0 ? ` · <span style="color:var(--danger)">${fiadoAberto} fiado(s)</span>` : ''}</div>
+        <div style="display:flex;align-items:center;gap:6px">
+          <div class="cliente-nome">${c.nome}</div>
+          ${getRiscoBadge(c.id, c.nome)}
+        </div>
+        <div class="cliente-tel">${c.tel || 'Sem telefone'}${creditoCliente > 0.01 ? ` · <span style="color:var(--info)">💰 ${fmtR(creditoCliente)}</span>` : ''}</div>
+        <div class="cliente-stats">${compras.length} compra${compras.length !== 1 ? 's' : ''} · ${fmtR(totalGasto)}</div>
       </div>
       <button onclick="abrirEditarCliente('${c.id}')" style="background:none;border:none;cursor:pointer;padding:8px;color:var(--text3)">
         <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
@@ -1965,6 +2162,130 @@ async function excluirCliente() {
   renderClientes();
   showToast('Cliente excluído');
   try { await apiPost('excluirCliente', { id }); } catch(e) {}
+}
+
+// ===== CARRINHO =====
+function initCarrinho() {
+  carrinhoItems = [{ descricao: '', valor: 0 }];
+  renderCarrinho();
+}
+
+function adicionarItemCarrinho() {
+  carrinhoItems.push({ descricao: '', valor: 0 });
+  renderCarrinho();
+}
+
+function removerItemCarrinho(idx) {
+  if (carrinhoItems.length === 1) {
+    carrinhoItems[0] = { descricao: '', valor: 0 };
+  } else {
+    carrinhoItems.splice(idx, 1);
+  }
+  renderCarrinho();
+  updatePreview();
+}
+
+function atualizarItemCarrinho(idx, campo, val) {
+  carrinhoItems[idx][campo] = campo === 'valor' ? (parseFloat(val) || 0) : val;
+  atualizarTotalCarrinho();
+  updatePreview();
+}
+
+function getTotalCarrinho() {
+  return carrinhoItems.reduce((s, i) => s + (parseFloat(i.valor) || 0), 0);
+}
+
+function atualizarTotalCarrinho() {
+  const total = getTotalCarrinho();
+  document.getElementById('carrinho-total-valor').textContent = fmtR(total);
+}
+
+function renderCarrinho() {
+  const el = document.getElementById('carrinho-items');
+  el.innerHTML = carrinhoItems.map((item, idx) => `
+    <div class="carrinho-item">
+      <input type="text" placeholder="Descrição do produto..." value="${item.descricao}"
+        oninput="atualizarItemCarrinho(${idx}, 'descricao', this.value)" />
+      <input type="number" placeholder="0,00" step="0.01" min="0" value="${item.valor || ''}"
+        oninput="atualizarItemCarrinho(${idx}, 'valor', this.value)" />
+      <button class="carrinho-remove" onclick="removerItemCarrinho(${idx})">
+        <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+      </button>
+    </div>
+  `).join('');
+  atualizarTotalCarrinho();
+}
+
+// ===== CRÉDITO DE CLIENTE =====
+function getCredito(clienteId) {
+  try {
+    const creditos = JSON.parse(localStorage.getItem('sj_creditos') || '{}');
+    return creditos[clienteId] || 0;
+  } catch(e) { return 0; }
+}
+
+function setCredito(clienteId, valor) {
+  const creditos = JSON.parse(localStorage.getItem('sj_creditos') || '{}');
+  creditos[clienteId] = Math.max(valor, 0);
+  localStorage.setItem('sj_creditos', JSON.stringify(creditos));
+}
+
+function aplicarCredito() {
+  const base = getTotalCarrinho();
+  creditoAplicado = Math.min(clienteCreditoDisponivel, base);
+  document.getElementById('credito-banner-wrap').style.display = 'none';
+  updatePreview();
+  showToast(`Crédito de ${fmtR(creditoAplicado)} aplicado!`);
+}
+
+// ===== PDV / TROCO =====
+function calcularTroco() {
+  const recebido = parseFloat(document.getElementById('pdv-recebido').value) || 0;
+  const base = getTotalCarrinho();
+  const baseComDesconto = Math.max(base - creditoAplicado, 0);
+  const { totalCliente } = calcValues(baseComDesconto, currentPayment, currentParcela);
+  const troco = recebido - totalCliente;
+  const trocoBox = document.getElementById('troco-box');
+  if (troco > 0.01) {
+    trocoGerado = troco;
+    trocoBox.style.display = 'block';
+    document.getElementById('troco-valor').textContent = fmtR(troco);
+  } else {
+    trocoGerado = 0;
+    trocoBox.style.display = 'none';
+  }
+}
+
+function registrarTroco(tipo) {
+  if (tipo === 'credito') {
+    const clienteId = document.getElementById('venda-cliente-nome').dataset.clienteId;
+    if (!clienteId) { showToast('Cliente precisa estar cadastrado para ter crédito'); return; }
+    const creditoAtual = getCredito(clienteId);
+    setCredito(clienteId, creditoAtual + trocoGerado);
+    showToast(`${fmtR(trocoGerado)} adicionado como crédito!`);
+  } else {
+    showToast(`Troco de ${fmtR(trocoGerado)} em dinheiro`);
+  }
+  trocoGerado = 0;
+  document.getElementById('troco-box').style.display = 'none';
+  document.getElementById('pdv-recebido').value = '';
+}
+
+// ===== INDICADOR DE RISCO =====
+function getRiscoBadge(clienteId, clienteNome) {
+  const fiadosAbertos = vendas.filter(v =>
+    (v.clienteId === clienteId || v.clienteNome === clienteNome) && v.fiado && !v.pago
+  );
+  const totalFiado = fiadosAbertos.reduce((s, v) => {
+    const pago = (fiadoPagamentos[v.id] || []).reduce((a, p) => a + parseFloat(p.valor), 0);
+    return s + Math.max(v.totalCliente - pago, 0);
+  }, 0);
+  if (totalFiado <= 0) return '';
+  if (totalFiado >= (params.riscoAlto || 200)) return `<span class="risco-badge risco-vermelho">⚠ ${fmtR(totalFiado)}</span>`;
+  if (totalFiado >= (params.riscoMedio || 100)) return `<span class="risco-badge risco-amarelo">● ${fmtR(totalFiado)}</span>`;
+  return `<span class="risco-badge risco-verde">● ${fmtR(totalFiado)}</span>`;
 }
 
 // ===== EXCLUIR VENDA =====
