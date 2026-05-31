@@ -1725,14 +1725,17 @@ function getComissao(totalMes) {
 }
 
 function calcValues(base, payment, parcela) {
+  // base = valor com desconto de crédito (o que cliente paga)
+  // baseOriginal = valor cheio da peça (base de cálculo de comissão)
+  const baseOriginal = getTotalCarrinho();
   let taxa = 0;
   if (payment === 'cartao') taxa = params.taxas[parcela - 1] / 100;
   const totalCliente = base * (1 + taxa);
   const totalMes = getTotalMesVendido();
-  const baseOriginal = getTotalCarrinho();
   const pct = getComissao(totalMes + baseOriginal);
-  const comissao = base * (pct / 100);
-  const repasse = base - comissao;
+  // Comissão e repasse sempre sobre o valor original da peça
+  const comissao = baseOriginal * (pct / 100);
+  const repasse = baseOriginal - comissao;
   return { taxa, totalCliente, comissao, repasse, pct };
 }
 
