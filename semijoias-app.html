@@ -1019,11 +1019,18 @@ body {
       <div class="param-title">Acerto com a dona</div>
       <div class="param-row">
         <div>
-          <div class="param-label">Dia do acerto todo mês</div>
-          <div class="param-sub">Ex: 10 = todo dia 10</div>
+          <div class="param-label">Data do próximo acerto</div>
+          <div class="param-sub">Base para calcular os próximos</div>
+        </div>
+        <input class="param-input" id="param-data-acerto" type="date" value="2026-07-10" onchange="saveParams()" style="width:130px" />
+      </div>
+      <div class="param-row">
+        <div>
+          <div class="param-label">Intervalo entre acertos</div>
+          <div class="param-sub">Em dias</div>
         </div>
         <div style="display:flex;align-items:center;gap:4px">
-          Dia <input class="param-input" id="param-dia-acerto" value="10" type="number" step="1" min="1" max="28" onchange="saveParams()" />
+          <input class="param-input" id="param-intervalo-acerto" value="40" type="number" step="1" min="1" onchange="saveParams()" /> dias
         </div>
       </div>
     </div>
@@ -1200,7 +1207,9 @@ let params = {
   notifDias: 3,
   riscoAlto: 200,
   riscoMedio: 100,
-  diaAcerto: 10
+  diaAcerto: 10,
+  dataBaseAcerto: '2026-07-10',
+  intervaloAcerto: 40
 };
 let clientes = [];
 let vendas = [];
@@ -1253,10 +1262,12 @@ async function sincronizarSheets() {
   sincronizando = true;
   showToast('Sincronizando...');
   try {
-    const [vs, cs, ps] = await Promise.all([
+    const [vs, cs, ps, creds, prms] = await Promise.all([
       apiGet('getVendas'),
       apiGet('getClientes'),
-      apiGet('getPagamentos')
+      apiGet('getPagamentos'),
+      apiGet('getCreditos'),
+      apiGet('getParametros')
     ]);
     vendas = vs || [];
     clientes = cs || [];
@@ -1265,6 +1276,30 @@ async function sincronizarSheets() {
       if (!fiadoPagamentos[p.vendaId]) fiadoPagamentos[p.vendaId] = [];
       fiadoPagamentos[p.vendaId].push({ valor: parseFloat(p.valor), data: p.data, pagamento: p.pagamento });
     });
+    // Sincronizar créditos
+    if (creds && creds.length > 0) {
+      const creditos = {};
+      creds.forEach(c => { creditos[c.clienteId] = parseFloat(c.saldo) || 0; });
+      localStorage.setItem('sj_creditos', JSON.stringify(creditos));
+    }
+    // Sincronizar parâmetros
+    if (prms && Object.keys(prms).length > 0) {
+      if (prms.taxa_1x) params.taxas[0] = parseFloat(prms.taxa_1x);
+      if (prms.taxa_2x) params.taxas[1] = parseFloat(prms.taxa_2x);
+      if (prms.taxa_3x) params.taxas[2] = parseFloat(prms.taxa_3x);
+      if (prms.taxa_4x) params.taxas[3] = parseFloat(prms.taxa_4x);
+      if (prms.taxa_5x) params.taxas[4] = parseFloat(prms.taxa_5x);
+      if (prms.comissao) params.comissao = parseFloat(prms.comissao);
+      if (prms.comissaoEsp) params.comissaoEsp = parseFloat(prms.comissaoEsp);
+      if (prms.meta) params.meta = parseFloat(prms.meta);
+      if (prms.notifDias) params.notifDias = parseInt(prms.notifDias);
+      if (prms.riscoAlto) params.riscoAlto = parseFloat(prms.riscoAlto);
+      if (prms.riscoMedio) params.riscoMedio = parseFloat(prms.riscoMedio);
+      if (prms.dataBaseAcerto) params.dataBaseAcerto = prms.dataBaseAcerto;
+      if (prms.intervaloAcerto) params.intervaloAcerto = parseInt(prms.intervaloAcerto);
+      localStorage.setItem('sj_params', JSON.stringify(params));
+      loadParams();
+    }
     saveLocalData();
     updateDashboard();
     renderFiado();
@@ -1280,7 +1315,7 @@ function saveData() {
   saveLocalData();
 }
 
-function saveParams() {
+async function saveParams() {
   params.taxas = [
     parseFloat(document.getElementById('param-taxa-1').value) || 5,
     parseFloat(document.getElementById('param-taxa-2').value) || 6.5,
@@ -1294,10 +1329,31 @@ function saveParams() {
   params.notifDias = parseInt(document.getElementById('param-notif-dias').value) || 3;
   params.riscoAlto = parseFloat(document.getElementById('param-risco-alto').value) || 200;
   params.riscoMedio = parseFloat(document.getElementById('param-risco-medio').value) || 100;
-  params.diaAcerto = parseInt(document.getElementById('param-dia-acerto').value) || 10;
+  params.dataBaseAcerto = document.getElementById('param-data-acerto').value || '2026-07-10';
+  params.intervaloAcerto = parseInt(document.getElementById('param-intervalo-acerto').value) || 40;
   localStorage.setItem('sj_params', JSON.stringify(params));
-  showToast('Configurações salvas!');
+  showToast('Salvando configurações...');
   updateDashboard();
+  try {
+    await apiPost('salvarParametros', {
+      taxa_1x: params.taxas[0],
+      taxa_2x: params.taxas[1],
+      taxa_3x: params.taxas[2],
+      taxa_4x: params.taxas[3],
+      taxa_5x: params.taxas[4],
+      comissao: params.comissao,
+      comissaoEsp: params.comissaoEsp,
+      meta: params.meta,
+      notifDias: params.notifDias,
+      riscoAlto: params.riscoAlto,
+      riscoMedio: params.riscoMedio,
+      dataBaseAcerto: params.dataBaseAcerto,
+      intervaloAcerto: params.intervaloAcerto
+    });
+    showToast('Configurações salvas! ✓');
+  } catch(e) {
+    showToast('Salvo localmente (sem internet)');
+  }
 }
 
 function loadParams() {
@@ -1312,7 +1368,8 @@ function loadParams() {
   document.getElementById('param-notif-dias').value = params.notifDias;
   document.getElementById('param-risco-alto').value = params.riscoAlto || 200;
   document.getElementById('param-risco-medio').value = params.riscoMedio || 100;
-  document.getElementById('param-dia-acerto').value = params.diaAcerto || 10;
+  document.getElementById('param-data-acerto').value = params.dataBaseAcerto || '2026-07-10';
+  document.getElementById('param-intervalo-acerto').value = params.intervaloAcerto || 40;
 }
 
 // ===== NAVIGATION =====
@@ -2280,11 +2337,13 @@ function verificarRiscoFiado(clienteId, clienteNome) {
 // ===== ACERTO =====
 function getProximoAcerto() {
   const hoje = new Date(); hoje.setHours(0,0,0,0);
-  const dia = params.diaAcerto || 10;
-  // Acerto é sempre do mês seguinte — ela vende em junho, acerta dia 10 de julho
-  // Se já passamos do dia do acerto neste mês, próximo é mês+2
-  // Se ainda não chegou o dia do acerto neste mês, próximo é mês+1
-  let acerto = new Date(hoje.getFullYear(), hoje.getMonth() + 1, dia);
+  const intervalo = params.intervaloAcerto || 40;
+  const dataBase = params.dataBaseAcerto || '2026-07-10';
+  let acerto = new Date(dataBase + 'T12:00:00');
+  // Avança ciclos de 40 dias até encontrar o próximo acerto após hoje
+  while (acerto <= hoje) {
+    acerto = new Date(acerto.getTime() + intervalo * 86400000);
+  }
   return acerto;
 }
 
