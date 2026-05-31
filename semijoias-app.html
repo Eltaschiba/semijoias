@@ -881,6 +881,10 @@ body {
   <div class="card" style="margin-top:8px">
     <div class="param-title">Dados</div>
     <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn btn-gold btn-sm" onclick="sincronizarSheets()">
+        <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
+        Sincronizar Sheets
+      </button>
       <button class="btn btn-outline btn-sm" onclick="exportarDados()">
         <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
         Exportar CSV
@@ -948,6 +952,26 @@ body {
 <div class="toast" id="toast"></div>
 
 <script>
+// ===== API =====
+const API_URL = 'https://script.google.com/macros/s/AKfycbxVgMW8jpXvDav_KnmDK0oTuZ1WhheIB_l5_BMiWcvftaJky17w9meS0ybMqa6pITLshQ/exec';
+
+async function apiGet(action) {
+  const res = await fetch(`${API_URL}?action=${action}`);
+  const json = await res.json();
+  if (!json.ok) throw new Error(json.error);
+  return json.data;
+}
+
+async function apiPost(action, payload) {
+  const res = await fetch(API_URL, {
+    method: 'POST',
+    body: JSON.stringify({ action, payload })
+  });
+  const json = await res.json();
+  if (!json.ok) throw new Error(json.error);
+  return json.data;
+}
+
 // ===== STATE =====
 let params = {
   taxas: [5, 6.5, 7.5, 8.5, 9],
@@ -967,10 +991,11 @@ let pagPayment = 'pix';
 let currentMonth = new Date().getMonth();
 let currentYear = new Date().getFullYear();
 let fiadoFiltro = 'todos';
+let sincronizando = false;
 
 // ===== INIT =====
-function init() {
-  loadData();
+async function init() {
+  loadLocalData();
   const today = new Date().toISOString().split('T')[0];
   document.getElementById('venda-data').value = today;
   document.getElementById('pag-data').value = today;
@@ -978,9 +1003,10 @@ function init() {
   renderFiado();
   renderHistorico();
   loadParams();
+  await sincronizarSheets();
 }
 
-function loadData() {
+function loadLocalData() {
   try {
     params = JSON.parse(localStorage.getItem('sj_params')) || params;
     clientes = JSON.parse(localStorage.getItem('sj_clientes')) || [];
@@ -989,10 +1015,42 @@ function loadData() {
   } catch(e) {}
 }
 
-function saveData() {
+function saveLocalData() {
   localStorage.setItem('sj_clientes', JSON.stringify(clientes));
   localStorage.setItem('sj_vendas', JSON.stringify(vendas));
   localStorage.setItem('sj_pagamentos', JSON.stringify(fiadoPagamentos));
+}
+
+async function sincronizarSheets() {
+  if (sincronizando) return;
+  sincronizando = true;
+  showToast('Sincronizando...');
+  try {
+    const [vs, cs, ps] = await Promise.all([
+      apiGet('getVendas'),
+      apiGet('getClientes'),
+      apiGet('getPagamentos')
+    ]);
+    vendas = vs || [];
+    clientes = cs || [];
+    fiadoPagamentos = {};
+    (ps || []).forEach(p => {
+      if (!fiadoPagamentos[p.vendaId]) fiadoPagamentos[p.vendaId] = [];
+      fiadoPagamentos[p.vendaId].push({ valor: parseFloat(p.valor), data: p.data, pagamento: p.pagamento });
+    });
+    saveLocalData();
+    updateDashboard();
+    renderFiado();
+    renderHistorico();
+    showToast('Sincronizado com Sheets ✓');
+  } catch(e) {
+    showToast('Offline — usando dados locais');
+  }
+  sincronizando = false;
+}
+
+function saveData() {
+  saveLocalData();
 }
 
 function saveParams() {
@@ -1075,7 +1133,7 @@ function abrirNovoCliente(nome) {
   document.getElementById('modal-novo-cliente').classList.add('show');
 }
 
-function salvarNovoCliente() {
+async function salvarNovoCliente() {
   const nome = document.getElementById('nc-nome').value.trim();
   const tel = document.getElementById('nc-tel').value.trim();
   if (!nome) { showToast('Informe o nome do cliente'); return; }
@@ -1089,6 +1147,7 @@ function salvarNovoCliente() {
   document.getElementById('telefone-wrap').style.display = 'none';
   fecharModal('modal-novo-cliente');
   showToast('Cliente salvo!');
+  try { await apiPost('salvarCliente', c); } catch(e) {}
 }
 
 // ===== PAYMENT =====
@@ -1161,7 +1220,7 @@ function updatePreview() {
 }
 
 // ===== SALVAR VENDA =====
-function salvarVenda() {
+async function salvarVenda() {
   const clienteNome = document.getElementById('venda-cliente-nome').value.trim();
   const clienteId = document.getElementById('venda-cliente-nome').dataset.clienteId || null;
   const clienteTel = document.getElementById('venda-cliente-tel').value.trim();
@@ -1180,12 +1239,14 @@ function salvarVenda() {
   const { totalCliente, comissao, repasse, pct } = calcValues(base, currentPayment, currentParcela);
 
   let cId = clienteId;
+  let novoCliente = null;
   if (!cId && clienteNome) {
     const existing = clientes.find(c => c.nome.toLowerCase() === clienteNome.toLowerCase());
     if (existing) { cId = existing.id; }
     else {
       cId = 'c_' + Date.now();
-      clientes.push({ id: cId, nome: clienteNome, tel: clienteTel });
+      novoCliente = { id: cId, nome: clienteNome, tel: clienteTel };
+      clientes.push(novoCliente);
     }
   }
 
@@ -1213,8 +1274,15 @@ function salvarVenda() {
   if (fiadoAtivo) fiadoPagamentos[venda.id] = [];
   saveData();
   resetForm();
-  showToast('Venda registrada!');
+  showToast('Salvando...');
   updateDashboard();
+  try {
+    if (novoCliente) await apiPost('salvarCliente', novoCliente);
+    await apiPost('salvarVenda', venda);
+    showToast('Venda registrada! ✓');
+  } catch(e) {
+    showToast('Salvo localmente (sem internet)');
+  }
   showPage('dashboard');
 }
 
@@ -1432,25 +1500,27 @@ function abrirPagamento(vendaId) {
   document.getElementById('modal-pagamento').classList.add('show');
 }
 
-function confirmarPagamento() {
+async function confirmarPagamento() {
   const valor = parseFloat(document.getElementById('pag-valor').value) || 0;
   if (valor <= 0) { showToast('Informe o valor pago'); return; }
   const data = document.getElementById('pag-data').value;
   const v = vendas.find(x => x.id === currentFiadoId);
   const pagtos = fiadoPagamentos[currentFiadoId] || [];
   const pago = pagtos.reduce((a,p) => a+p.valor, 0);
-  const restante = v.totalCliente - pago;
 
   if (!fiadoPagamentos[currentFiadoId]) fiadoPagamentos[currentFiadoId] = [];
+  const pagamento = { vendaId: currentFiadoId, valor, data, pagamento: pagPayment };
   fiadoPagamentos[currentFiadoId].push({ valor, data, pagamento: pagPayment });
 
   const novoPago = pago + valor;
+  let vendaAtualizada = false;
   if (novoPago >= v.totalCliente - 0.01) {
     v.pago = true;
     const pct = getComissao(getTotalMesVendido() + v.base);
     v.comissao = v.base * (pct / 100);
     v.repasse = v.base - v.comissao;
     v.comissaoPct = pct;
+    vendaAtualizada = true;
     showToast('Fiado quitado! Comissão registrada.');
   } else {
     showToast(`Pagamento de ${fmtR(valor)} registrado!`);
@@ -1460,16 +1530,23 @@ function confirmarPagamento() {
   fecharModal('modal-pagamento');
   renderFiado();
   updateDashboard();
+  try {
+    await apiPost('salvarPagamento', pagamento);
+    if (vendaAtualizada) await apiPost('atualizarVenda', v);
+  } catch(e) {}
 }
 
-function marcarQuitado(vendaId) {
+async function marcarQuitado(vendaId) {
   const v = vendas.find(x => x.id === vendaId);
   const pagtos = fiadoPagamentos[vendaId] || [];
   const pago = pagtos.reduce((a,p) => a+p.valor, 0);
   const restante = v.totalCliente - pago;
+  const dataHoje = new Date().toISOString().split('T')[0];
+  let pagamento = null;
   if (restante > 0.01) {
     fiadoPagamentos[vendaId] = fiadoPagamentos[vendaId] || [];
-    fiadoPagamentos[vendaId].push({ valor: restante, data: new Date().toISOString().split('T')[0], pagamento: 'quitado' });
+    pagamento = { vendaId, valor: restante, data: dataHoje, pagamento: 'quitado' };
+    fiadoPagamentos[vendaId].push({ valor: restante, data: dataHoje, pagamento: 'quitado' });
   }
   v.pago = true;
   const pct = getComissao(getTotalMesVendido() + v.base);
@@ -1480,6 +1557,10 @@ function marcarQuitado(vendaId) {
   renderFiado();
   updateDashboard();
   showToast('Venda quitada!');
+  try {
+    if (pagamento) await apiPost('salvarPagamento', pagamento);
+    await apiPost('atualizarVenda', v);
+  } catch(e) {}
 }
 
 function enviarWhatsapp(tel, nome, valor, produto) {
@@ -1580,11 +1661,12 @@ function exportarDados() {
 }
 
 function confirmarLimpar() {
-  if (confirm('Tem certeza? Todos os dados serão apagados.')) {
+  if (confirm('Tem certeza? Isso apaga os dados locais. Os dados no Google Sheets não são afetados.')) {
     localStorage.clear();
     vendas=[]; clientes=[]; fiadoPagamentos={};
     updateDashboard(); renderFiado(); renderHistorico();
-    showToast('Dados apagados');
+    showToast('Cache local limpo');
+    sincronizarSheets();
   }
 }
 
