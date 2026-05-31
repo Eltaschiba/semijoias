@@ -602,8 +602,15 @@ body {
 <body>
 
 <div class="app-header">
-  <h1>Gestão Vendas Semijoias</h1>
-  <p class="subtitle">Controle de vendas</p>
+  <div style="display:flex;justify-content:space-between;align-items:flex-start">
+    <div>
+      <h1> Gestão Semijoias</h1>
+      <p class="subtitle">Controle de vendas</p>
+    </div>
+    <button onclick="showPage('parametros')" style="background:none;border:none;cursor:pointer;padding:4px;margin-top:2px" title="Configurações">
+      <svg width="22" height="22" fill="none" stroke="var(--gold)" stroke-width="1.8" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+    </button>
+  </div>
   <div class="nav-tabs">
     <button class="nav-tab active" onclick="showPage('dashboard')">
       <div class="nav-tab-icon">
@@ -629,11 +636,11 @@ body {
       </div>
       <span>Histórico</span>
     </button>
-    <button class="nav-tab" onclick="showPage('parametros')">
+    <button class="nav-tab" onclick="showPage('clientes')">
       <div class="nav-tab-icon">
-        <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 010 14.14M4.93 4.93a10 10 0 000 14.14"/></svg>
+        <svg fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
       </div>
-      <span>Config</span>
+      <span>Clientes</span>
     </button>
   </div>
 </div>
@@ -658,7 +665,7 @@ body {
       <div class="stat-sub" id="dash-pct">30%</div>
     </div>
     <div class="stat-card">
-      <div class="stat-label">A pagar dona</div>
+      <div class="stat-label">A pagar</div>
       <div class="stat-value" id="dash-repasse">R$ 0</div>
       <div class="stat-sub">confirmado</div>
     </div>
@@ -772,7 +779,7 @@ body {
       <div class="row" id="prev-taxa-row" style="display:none"><span id="prev-taxa-label">Taxa cartão</span><span id="prev-taxa">+R$ 0,00</span></div>
       <div class="row total"><span>Total cliente paga</span><span id="prev-total">R$ 0,00</span></div>
       <div class="row comissao" style="margin-top:8px"><span id="prev-com-label">Comissão (30%)</span><span id="prev-comissao">R$ 0,00</span></div>
-      <div class="row"><span>A pagar</span><span id="prev-repasse">R$ 0,00</span></div>
+      <div class="row"><span>A pagar dona</span><span id="prev-repasse">R$ 0,00</span></div>
       <div class="row" id="prev-entrada-row" style="display:none;color:var(--success)"><span>Entrada</span><span id="prev-entrada">-R$ 0,00</span></div>
       <div class="row" id="prev-resta-row" style="display:none;font-weight:600;color:var(--danger)"><span>Restante a pagar</span><span id="prev-resta">R$ 0,00</span></div>
     </div>
@@ -802,6 +809,18 @@ body {
     <input class="search-input" placeholder="Buscar venda..." oninput="filtrarHistorico(this.value)" id="hist-search" />
   </div>
   <div id="historico-list"></div>
+</div>
+
+<!-- CLIENTES -->
+<div id="page-clientes" class="page">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+    <div class="section-title" style="margin-bottom:0">Clientes</div>
+    <button class="btn btn-gold btn-sm" onclick="abrirNovoClienteAvulso()">+ Novo</button>
+  </div>
+  <div class="search-bar" style="margin-bottom:14px">
+    <input class="search-input" placeholder="Buscar cliente..." oninput="filtrarClientes(this.value)" id="clientes-search" />
+  </div>
+  <div id="clientes-list"></div>
 </div>
 
 <!-- PARAMETROS -->
@@ -900,6 +919,26 @@ body {
       <button class="btn btn-danger btn-sm" onclick="confirmarLimpar()">Limpar dados</button>
     </div>
     <p style="font-size:11px;color:var(--text3);margin-top:10px">Versão 1.0 — Dados salvos localmente</p>
+  </div>
+</div>
+
+<!-- MODAL EDITAR CLIENTE -->
+<div class="modal-overlay" id="modal-editar-cliente">
+  <div class="modal-sheet">
+    <div class="modal-handle"></div>
+    <div class="modal-title" id="edit-cliente-title">Editar cliente</div>
+    <div class="form-group">
+      <label class="form-label">Nome</label>
+      <input class="form-input" id="edit-cliente-nome" placeholder="Nome completo" />
+    </div>
+    <div class="form-group">
+      <label class="form-label">Telefone (WhatsApp)</label>
+      <input class="form-input" id="edit-cliente-tel" type="tel" placeholder="(xx) xxxxx-xxxx" oninput="formatTel(this)" />
+    </div>
+    <input type="hidden" id="edit-cliente-id" />
+    <button class="btn btn-gold" onclick="salvarEdicaoCliente()" style="margin-top:8px">Salvar alterações</button>
+    <button class="btn btn-danger" onclick="excluirCliente()" style="margin-top:8px">Excluir cliente</button>
+    <button class="btn btn-outline" onclick="fecharModal('modal-editar-cliente')" style="margin-top:8px">Cancelar</button>
   </div>
 </div>
 
@@ -1114,13 +1153,14 @@ function showPage(page) {
   document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
   document.getElementById('page-' + page).classList.add('active');
   const tabs = document.querySelectorAll('.nav-tab');
-  const pages = ['dashboard','nova-venda','fiado','historico','parametros'];
+  const pages = ['dashboard','nova-venda','fiado','historico','clientes','parametros'];
   const idx = pages.indexOf(page);
   if(idx >= 0) tabs[idx].classList.add('active');
 
   if(page === 'dashboard') updateDashboard();
   if(page === 'fiado') renderFiado();
   if(page === 'historico') renderHistorico();
+  if(page === 'clientes') renderClientes();
 }
 
 // ===== AUTOCOMPLETE =====
@@ -1823,6 +1863,108 @@ function abrirHistoricoCliente(clienteIdOuNome) {
     ${compras.length === 0 ? '<p style="font-size:13px;color:var(--text3);text-align:center;padding:20px 0">Nenhuma compra registrada</p>' : comprasHTML}
   `;
   document.getElementById('modal-cliente').classList.add('show');
+}
+
+// ===== CLIENTES =====
+let clientesBusca = '';
+
+function filtrarClientes(val) {
+  clientesBusca = val;
+  renderClientes();
+}
+
+function renderClientes() {
+  let lista = [...clientes];
+  if (clientesBusca) lista = lista.filter(c =>
+    c.nome.toLowerCase().includes(clientesBusca.toLowerCase()) ||
+    (c.tel || '').includes(clientesBusca)
+  );
+  lista.sort((a, b) => a.nome.localeCompare(b.nome));
+
+  const el = document.getElementById('clientes-list');
+  if (!el) return;
+
+  if (lista.length === 0) {
+    el.innerHTML = `<div class="empty-state">
+      <svg fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" width="48" height="48"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
+      <p>Nenhum cliente encontrado</p>
+    </div>`;
+    return;
+  }
+
+  el.innerHTML = lista.map(c => {
+    const compras = vendas.filter(v => v.clienteId === c.id || v.clienteNome === c.nome);
+    const totalGasto = compras.reduce((s, v) => s + v.totalCliente, 0);
+    const fiadoAberto = compras.filter(v => v.fiado && !v.pago).length;
+    const iniciais = c.nome.split(' ').map(n => n[0]).slice(0,2).join('').toUpperCase();
+    return `<div class="cliente-item">
+      <div class="cliente-avatar">${iniciais}</div>
+      <div class="cliente-info" onclick="abrirHistoricoCliente('${c.id}')" style="cursor:pointer;flex:1">
+        <div class="cliente-nome">${c.nome}</div>
+        <div class="cliente-tel">${c.tel || 'Sem telefone'}</div>
+        <div class="cliente-stats">${compras.length} compra${compras.length !== 1 ? 's' : ''} · ${fmtR(totalGasto)}${fiadoAberto > 0 ? ` · <span style="color:var(--danger)">${fiadoAberto} fiado(s)</span>` : ''}</div>
+      </div>
+      <button onclick="abrirEditarCliente('${c.id}')" style="background:none;border:none;cursor:pointer;padding:8px;color:var(--text3)">
+        <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+      </button>
+    </div>`;
+  }).join('');
+}
+
+function abrirNovoClienteAvulso() {
+  document.getElementById('edit-cliente-title').textContent = 'Novo cliente';
+  document.getElementById('edit-cliente-nome').value = '';
+  document.getElementById('edit-cliente-tel').value = '';
+  document.getElementById('edit-cliente-id').value = '';
+  document.querySelector('#modal-editar-cliente .btn-danger').style.display = 'none';
+  document.getElementById('modal-editar-cliente').classList.add('show');
+}
+
+function abrirEditarCliente(id) {
+  const c = clientes.find(x => x.id === id);
+  if (!c) return;
+  document.getElementById('edit-cliente-title').textContent = 'Editar cliente';
+  document.getElementById('edit-cliente-nome').value = c.nome;
+  document.getElementById('edit-cliente-tel').value = c.tel || '';
+  document.getElementById('edit-cliente-id').value = id;
+  document.querySelector('#modal-editar-cliente .btn-danger').style.display = 'flex';
+  document.getElementById('modal-editar-cliente').classList.add('show');
+}
+
+async function salvarEdicaoCliente() {
+  const id = document.getElementById('edit-cliente-id').value;
+  const nome = document.getElementById('edit-cliente-nome').value.trim();
+  const tel = document.getElementById('edit-cliente-tel').value.trim();
+  if (!nome) { showToast('Informe o nome'); return; }
+
+  if (id) {
+    const c = clientes.find(x => x.id === id);
+    if (c) { c.nome = nome; c.tel = tel; }
+    vendas.forEach(v => { if (v.clienteId === id) { v.clienteNome = nome; v.clienteTel = tel; } });
+  } else {
+    const novoId = 'c_' + Date.now();
+    clientes.push({ id: novoId, nome, tel });
+    try { await apiPost('salvarCliente', { id: novoId, nome, tel }); } catch(e) {}
+  }
+
+  saveData();
+  fecharModal('modal-editar-cliente');
+  renderClientes();
+  showToast('Cliente salvo!');
+  try {
+    if (id) await apiPost('atualizarCliente', { id, nome, tel });
+  } catch(e) {}
+}
+
+async function excluirCliente() {
+  const id = document.getElementById('edit-cliente-id').value;
+  if (!confirm('Excluir este cliente? As vendas associadas não serão apagadas.')) return;
+  clientes = clientes.filter(c => c.id !== id);
+  saveData();
+  fecharModal('modal-editar-cliente');
+  renderClientes();
+  showToast('Cliente excluído');
+  try { await apiPost('excluirCliente', { id }); } catch(e) {}
 }
 
 // ===== EXCLUIR VENDA =====
