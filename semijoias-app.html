@@ -691,7 +691,7 @@ body {
 <!-- TELA DE LOGIN -->
 <div id="login-screen" style="display:none;position:fixed;inset:0;background:var(--dark);z-index:999;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:32px">
   <div style="font-family:'DM Serif Display',serif;font-size:36px;color:var(--gold);margin-bottom:8px">✦</div>
-  <div style="font-family:'DM Serif Display',serif;font-size:24px;color:#fff;margin-bottom:4px">Gestão Semijoias</div>
+  <div style="font-family:'DM Serif Display',serif;font-size:24px;color:#fff;margin-bottom:4px">Semijoias</div>
   <div style="font-size:13px;color:var(--text3);margin-bottom:40px">Controle de vendas</div>
   <div style="width:100%;max-width:320px">
     <div style="font-size:13px;color:var(--text3);margin-bottom:8px;text-align:center">Digite sua senha para entrar</div>
@@ -709,7 +709,7 @@ body {
 <div class="app-header">
   <div style="display:flex;justify-content:space-between;align-items:flex-start">
     <div>
-      <h1>Gestão Semijoias</h1>
+      <h1>✦ Semijoias</h1>
       <p class="subtitle">Controle de vendas</p>
     </div>
     <button onclick="showPage('parametros')" style="background:none;border:none;cursor:pointer;padding:4px;margin-top:2px" title="Configurações">
@@ -1920,12 +1920,23 @@ function changeMonth(dir) {
   updateDashboard();
 }
 
+function normalizeData(data) {
+  if (!data) return null;
+  if (data instanceof Date) return data.toISOString().split('T')[0];
+  if (typeof data === 'number') {
+    const jsDate = new Date((data - 25569) * 86400000);
+    return jsDate.toISOString().split('T')[0];
+  }
+  return String(data).split('T')[0];
+}
+
 function getVendasDoMes() {
   return vendas.filter(v => {
-    const d = new Date(v.data + 'T12:00:00');
+    const dataStr = normalizeData(v.data);
+    if (!dataStr) return false;
+    const d = new Date(dataStr + 'T12:00:00');
     const noMes = d.getMonth() === currentMonth && d.getFullYear() === currentYear;
     if (!noMes) return false;
-    // Retroativas sem "incluir no total" ficam fora do cálculo
     if (v.retroativa && !v.retroIncluirTotal) return false;
     return true;
   });
@@ -2322,7 +2333,7 @@ function renderHistorico() {
 }
 
 function renderVendaCard(v, compact) {
-  const d = new Date(v.data + 'T12:00:00');
+  const d = new Date(normalizeData(v.data) + 'T12:00:00');
   const dataFmt = d.toLocaleDateString('pt-BR');
   let payBadge = v.pagamento === 'pix' ? '<span class="badge badge-pix">PIX</span>'
     : v.pagamento === 'dinheiro' ? '<span class="badge badge-dinheiro">Dinheiro</span>'
