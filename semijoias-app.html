@@ -1971,7 +1971,8 @@ function getTotalMesVendido() {
 function updateDashboard() {
   document.getElementById('dash-month-label').textContent = MESES[currentMonth] + ' ' + currentYear;
   const mes = getVendasDoMes();
-  const totalBase = mes.reduce((s, v) => s + v.base, 0);
+  // Total vendido = soma dos valores originais das peças (sem taxa, sem crédito)
+  const totalBase = mes.reduce((s, v) => s + (parseFloat(v.base) || 0), 0);
   const totalComissao = mes.filter(v => v.pago).reduce((s, v) => s + v.comissao, 0);
   const totalRepasse = mes.filter(v => v.pago).reduce((s, v) => s + v.repasse, 0);
 
@@ -1990,9 +1991,12 @@ function updateDashboard() {
   const fiadosAbertosAll = vendas.filter(v => v.fiado && !v.pago);
   const comissaoAReceber = fiadosAbertosAll.reduce((s, v) => {
     const pago = (fiadoPagamentos[v.id] || []).reduce((a, p) => a + parseFloat(p.valor || 0), 0);
-    const restante = Math.max(v.totalCliente - pago, 0);
-    const pctV = v.comissaoPct || params.comissao;
-    return s + (restante * (pctV / 100));
+    const totalDevido = Math.max(v.totalCliente - pago, 0);
+    const pctV = parseFloat(v.comissaoPct) || parseFloat(params.comissao) || 30;
+    // Comissão sobre valor original da peça proporcional ao que ainda falta
+    const baseOriginal = parseFloat(v.base) || 0;
+    const proporcao = v.totalCliente > 0 ? totalDevido / v.totalCliente : 1;
+    return s + (baseOriginal * proporcao * (pctV / 100));
   }, 0);
   document.getElementById('dash-comissao-receber').textContent = fmtR(comissaoAReceber);
   document.getElementById('dash-comissao-receber-sub').textContent =
@@ -2000,9 +2004,11 @@ function updateDashboard() {
   // Devedor = repasse vendas pagas + repasse fiados em aberto (sai do bolso)
   const repasseFiadosAbertos = fiadosAbertos.reduce((s, v) => {
     const pago = (fiadoPagamentos[v.id] || []).reduce((a, p) => a + parseFloat(p.valor || 0), 0);
-    const restante = Math.max(v.totalCliente - pago, 0);
-    const pct = v.comissaoPct || params.comissao;
-    return s + (restante * (1 - pct / 100));
+    const totalDevido = Math.max(v.totalCliente - pago, 0);
+    const pctV = parseFloat(v.comissaoPct) || parseFloat(params.comissao) || 30;
+    const baseOriginal = parseFloat(v.base) || 0;
+    const proporcao = v.totalCliente > 0 ? totalDevido / v.totalCliente : 1;
+    return s + (baseOriginal * proporcao * (1 - pctV / 100));
   }, 0);
   const totalDevedor = totalRepasse + repasseFiadosAbertos;
   document.getElementById('dash-repasse').textContent = fmtR(totalDevedor);
@@ -2025,7 +2031,7 @@ function updateDashboard() {
   const hoje = new Date(); hoje.setHours(0,0,0,0);
   const alertas = fiadosAbertos.filter(v => {
     if (!v.vencimento) return false;
-    const venc = new Date(v.vencimento + 'T12:00:00');
+    const venc = new Date((normalizeData(v.vencimento) || '') + 'T12:00:00');
     const diff = Math.floor((venc - hoje) / 86400000);
     return diff <= params.notifDias;
   }).sort((a,b) => new Date(a.vencimento) - new Date(b.vencimento));
@@ -2036,7 +2042,7 @@ function updateDashboard() {
     alertasCard.style.display = 'block';
     const alertasEl = document.getElementById('dash-alertas');
     alertasEl.innerHTML = alertas.map(v => {
-      const venc = new Date(v.vencimento + 'T12:00:00');
+      const venc = new Date((normalizeData(v.vencimento) || '') + 'T12:00:00');
       const diff = Math.floor((venc - hoje) / 86400000);
       const pago = (fiadoPagamentos[v.id]||[]).reduce((a,p)=>a+p.valor,0);
       const restante = v.totalCliente - pago;
@@ -2057,7 +2063,7 @@ function updateDashboard() {
   const badgeWrap = document.getElementById('fiado-badge-wrap');
   const vencidos = fiadosAbertos.filter(v => {
     if (!v.vencimento) return false;
-    const venc = new Date(v.vencimento + 'T12:00:00');
+    const venc = new Date((normalizeData(v.vencimento) || '') + 'T12:00:00');
     return venc <= hoje;
   });
   const existingBadge = badgeWrap.querySelector('.badge');
@@ -2118,7 +2124,7 @@ function renderFiado() {
     let vencClass = '';
     let vencLabel = 'Sem vencimento';
     if (v.vencimento) {
-      const venc = new Date(v.vencimento + 'T12:00:00');
+      const venc = new Date((normalizeData(v.vencimento) || '') + 'T12:00:00');
       const diff = Math.floor((venc - hoje) / 86400000);
       if (diff < 0) { vencClass = 'vencido'; vencLabel = `Vencido há ${Math.abs(diff)}d`; }
       else if (diff <= params.notifDias) { vencClass = 'proximo'; vencLabel = diff === 0 ? 'Hoje!' : `Em ${diff} dia(s)`; }
@@ -2496,7 +2502,7 @@ function abrirHistoricoCliente(clienteIdOuNome) {
   }, 0);
 
   const comprasHTML = compras.map(v => {
-    const d = new Date(v.data + 'T12:00:00');
+    const d = new Date((normalizeData(v.data) || '') + 'T12:00:00');
     const pagtos = fiadoPagamentos[v.id] || [];
     const pago = pagtos.reduce((a, p) => a + parseFloat(p.valor), 0);
     const restante = Math.max(v.totalCliente - pago, 0);
